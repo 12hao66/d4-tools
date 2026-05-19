@@ -1,6 +1,11 @@
 var additiveDamageLabelsList = [
 	{label: "All Damage", group: "", types: []},
 	{label: "Bone Crit. Damage", group: "", types: []},
+	{label: "Damage Over Time", group: "", types: ["core_dot"]},
+	{label: "Physical Damage", group: "", types: []},
+	{label: "Phys. Damage Over Time", group: "", types: ["core_dot"]},
+	{label: "[Element] Damage", group: "", types: []},
+	{label: "[Element] Damage Over Time", group: "", types: ["core_dot"]},
 	{label: "Damage vs Bleeding", group: "", types: []},
 	{label: "Damage vs Burning", group: "", types: []},
 	{label: "Damage vs Chilled", group: "", types: []},
@@ -15,16 +20,6 @@ var additiveDamageLabelsList = [
 	{label: "Damage vs Stunned", group: "", types: []},
 	{label: "Damage while Berserking", group: "", types: []},
 	{label: "Damage while Fortified", group: "", types: []},
-	{label: "Damage while Healthy", group: "", types: []},
-	{label: "Damage with Basic Skill", group: "", types: []},
-	{label: "Damage with Bleeding", group: "", types: []},
-	{label: "Damage with Bone", group: "", types: []},
-	{label: "Damage with Cold", group: "", types: []},
-	{label: "Damage with Core", group: "", types: []},
-	{label: "Damage with Fire", group: "", types: []},
-	{label: "Damage with Lightning", group: "", types: []},
-	{label: "Damage with Physical", group: "", types: []},
-	{label: "Damage with Poison", group: "", types: []},
-	{label: "Damage with Shadow", group: "", types: []}
+	{label: "Damage while Healthy", group: "", types: []}
 ]
 //TODO: add more

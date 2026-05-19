@@ -363,6 +363,13 @@ html.dark .section.info-box {
 .group.flat {
 	padding: 0px 4px;
 }
+.group.no-side-padding {
+	padding-left: 0px;
+	padding-right: 0px;
+}
+.group.opacity-20 {
+	opacity: 0.2;
+}
 .group.right {
 	justify-content: right;
 }
@@ -413,6 +420,11 @@ html.dark .section.info-box {
 .group label.flex {
 	display: flex;
 	justify-content: center;
+	align-items: center;
+}
+.group label.flex-start {
+	display: flex;
+	justify-content: start;
 	align-items: center;
 }
 .group span,
@@ -522,11 +534,23 @@ html.dark .group .type-box .type-element.empty {
 .color-crit {
 	color: #ffcb00;
 }
+.color-dot {
+	color: #ff0000;
+}
+.color-dot-crit {
+	color: #ff3300;
+}
 .color-overpower {
 	color: #00deed;
 }
 .color-op-crit {
 	color: #ff890c;
+}
+.color-none {
+	color: #fff;
+}
+html.dark .color-none {
+	color: #161616;
 }
 .color-add-mod {
 	color: #009688;

@@ -8,26 +8,70 @@ var vulnerableColor = "color-vulnerable";
 var critColor = "color-crit";
 var overpowerColor = "color-overpower";
 var overpowerCritColor = "color-op-crit";
+var dotColor = "color-dot";
+var dotCritColor = "color-dot-crit";
+var noneColor = "color-none";
 
 const TYPE_KEY_CORE = "core";
+const TYPE_KEY_CORE_B2 = "core_b2";
+const TYPE_KEY_CORE_DOT = "core_dot";	//TODO: not implemented yet
+const TYPE_KEY_CORE_DOT_B2 = "core_dot_b2";
 const TYPE_VULNERABLE = "vulnerable";
+const TYPE_VULNERABLE_B2 = "vulnerable_b2";
 const TYPE_CRIT = "crit";
+const TYPE_CRIT_B2 = "crit_b2";
 const TYPE_OVERPOWER = "overpower";
 
 var selectableDamageTypes = [
+	//NOTE: check 'getIncludedDamageTypesAndKey' if you change the available types
 	{name: "Vulnerable Enemy", value: TYPE_VULNERABLE, className: vulnerableColor, color: ""},
+	{name: "Vulnerable Damage Multiplier", value: TYPE_VULNERABLE_B2, className: vulnerableColor, color: ""},
 	{name: "Critical Strike", value: TYPE_CRIT, className: critColor, color: ""},
-	{name: "Overpower Strike", value: TYPE_OVERPOWER, className: overpowerColor, color: ""}
+	{name: "Critical Strike Damage Multiplier", value: TYPE_CRIT_B2, className: critColor, color: ""},
+	{name: "Damage Over Time", value: TYPE_KEY_CORE_DOT, className: dotColor, color: ""},
+	{name: "Damage Over Time Multiplier", value: TYPE_KEY_CORE_DOT_B2, className: dotColor, color: ""},
+	{name: "Requires Overpower Stacks", value: TYPE_OVERPOWER, className: overpowerColor, color: ""},
+	//{name: "Unique/Set/Aspect/Paragon Multiplier", value: TYPE_KEY_CORE, className: noneColor, color: ""},
+	{name: "All/Phys/[Element] Damage Multi.", value: TYPE_KEY_CORE_B2, className: "", color: ""}
 	//{name: "Test", value: "test", className: "", color: "#0f0"}
 ];
+var selectableDamageTypesFilter = {
+	//NOTE: null = all
+	additive: [TYPE_KEY_CORE, TYPE_KEY_CORE_DOT, TYPE_VULNERABLE, TYPE_CRIT, TYPE_OVERPOWER],
+	multiplicativeB1: [TYPE_KEY_CORE, TYPE_KEY_CORE_DOT, TYPE_VULNERABLE, TYPE_CRIT, TYPE_OVERPOWER],
+	multiplicativeB2: [TYPE_KEY_CORE_B2, TYPE_KEY_CORE_DOT_B2, TYPE_VULNERABLE_B2, TYPE_CRIT_B2]
+};
+function getColorForTypes(typesArray, customFallback){
+	let isDot = typesArray.includes(TYPE_KEY_CORE_DOT) || typesArray.includes(TYPE_KEY_CORE_DOT_B2);
+	let isVulnerable = typesArray.includes(TYPE_VULNERABLE) || typesArray.includes(TYPE_VULNERABLE_B2);
+	let isCrit = typesArray.includes(TYPE_CRIT) || typesArray.includes(TYPE_CRIT_B2);
+	let isOverpower = typesArray.includes(TYPE_OVERPOWER);	//TODO: has the overpower color been removed in-game since S13?
+	if (isDot && isCrit){
+		return dotCritColor;
+	}else if (isDot){
+		return dotColor;
+	}else if (isCrit && isOverpower){
+		return overpowerCritColor;
+	}else if (isOverpower){
+		return overpowerColor;
+	}else if (isCrit){
+		return critColor;
+	}else if (isVulnerable){
+		return vulnerableColor;
+	}else{
+		return customFallback || addModColorLight;
+	}
+}
 
 var classSpecificValues = {
 	"Barbarian": {mainStatScaling: 9.0909},
 	"Druid": {mainStatScaling: 8},
 	"Necro": {mainStatScaling: 8},
+	"Paladin": {mainStatScaling: 8},
 	"Rogue": {mainStatScaling: 8},
 	"Sorc": {mainStatScaling: 8},
-	"Spiritborn": {mainStatScaling: 8}
+	"Spiritborn": {mainStatScaling: 8},
+	"Warlock": {mainStatScaling: 8}
 }
 var defaultMainStatScaling = 8;
 
@@ -47,8 +91,18 @@ function buildCalculator(containerEle, options){
 	var getCharClass = function(){ return charClassEle?.value || ""; };
 	
 	var baseDamageEle = containerEle.querySelector("[name=base-damage]");
+	var weaponDamageAddEle = containerEle.querySelector("[name=weapon-damage-add]");
 	var attackSpeedEle = containerEle.querySelector("[name=attack-speed]");
 	var skillDamageEle = containerEle.querySelector("[name=skill-damage]");
+	var skillDotDurationEle = containerEle.querySelector("[name=skill-dot-duration]");
+	var isDamageOverTimeEle = containerEle.querySelector("[name=skill-is-dot]");
+	isDamageOverTimeEle.addEventListener("change", function(){
+		if (this.checked){
+			skillDotDurationEle.parentElement.style.removeProperty("display");
+		}else{
+			skillDotDurationEle.parentElement.style.display = "none";
+		}
+	});
 	var mainStatEle = containerEle.querySelector("[name=main-stat]");
 	var mainStatDmgEle = containerEle.querySelector("[name=main-stat-dmg]");
 	mainStatEle.addEventListener("change", function(){
@@ -70,6 +124,7 @@ function buildCalculator(containerEle, options){
 	});
 	setCalcItemToDisabled(overpowerDamageEle.parentElement, overpowerDamageEle, overpowerDamageLockEle, 1);
 	var overpowerDamageAddEle = containerEle.querySelector("[name=overpower-damage-add]");
+	var overpowerStacksEle = containerEle.querySelector("[name=overpower-stacks]");
 	var overpowerOnNthAttackEle = containerEle.querySelector("[name=overpower-nth-attack]");
 	var isFortified = containerEle.querySelector("[name=char-is-fortified]");
 	var critDamageEle = containerEle.querySelector("[name=critical-damage]");
@@ -83,8 +138,10 @@ function buildCalculator(containerEle, options){
 	
 	var addModifiersContainer = containerEle.querySelector("[name=add-modifiers-container]");
 	var addModifierBtn = containerEle.querySelector("[name=add-modifier-btn]");
-	var multiModifiersContainer = containerEle.querySelector("[name=multi-modifiers-container]");
-	var multiModifierBtn = containerEle.querySelector("[name=multi-modifier-btn]");
+	var multiModifiersContainerC1 = containerEle.querySelector("[name=multi-modifiers-container]");
+	var multiModifierBtnC1 = containerEle.querySelector("[name=multi-modifier-btn]");
+	var multiModifiersContainerC2 = containerEle.querySelector("[name=multi-modifiers-container-c2]");
+	var multiModifierBtnC2 = containerEle.querySelector("[name=multi-modifier-btn-c2]");
 	var reductionModifiersContainer = containerEle.querySelector("[name=reduction-modifiers-container]");
 	var reductionModifierBtn = containerEle.querySelector("[name=reduction-modifier-btn]");
 	
@@ -95,7 +152,16 @@ function buildCalculator(containerEle, options){
 	var simDpsBtn = containerEle.querySelector("[name=simulate-dps-btn]");
 	var doCalcCrit = containerEle.querySelector("[name=do-calc-crit]");
 	var doCalcVulnerable = containerEle.querySelector("[name=do-calc-vulnerable]");
-	var doCalcOverpower = containerEle.querySelector("[name=do-calc-overpower]");
+	//var doCalcOverpower = containerEle.querySelector("[name=do-calc-overpower]");
+	var doCalcOverpower = {
+		//NOTE: the 'doCalcOverpower' checkbox has been replaced with the stacks counter
+		get value() {
+			return !!+overpowerStacksEle.value;
+		},
+		get checked() {
+			return !!+overpowerStacksEle.value;
+		}
+	}
 	
 	//set refresh listeners
 	containerEle.querySelectorAll('[data-refresh-calc="true"]').forEach(function(ele){
@@ -137,26 +203,46 @@ function buildCalculator(containerEle, options){
 	}
 	
 	function addAdditiveMod(newName, startValue, isDisabled, selectedTypes){
+		const addFilter = selectableDamageTypesFilter.additive;
+		const addDamageTypes = selectableDamageTypes.filter((o) => !addFilter || addFilter.includes(o.value));
 		//var modName = newName || prompt("Enter a name for this '+' modifier:");
 		Promise.resolve(newName? {name: newName} : addDynamicModPromptPromise("", "Enter a name for this '+' modifier:",
-			additiveDamageLabelsList, selectableDamageTypes, selectedTypes, getCharClass()))
+			additiveDamageLabelsList, addDamageTypes, selectedTypes, getCharClass()))
 		.then(function(data){
 			var modName = data.name;
 			if (modName){
 				addDynamicMod(addModifiersContainer, modName, "add-mod-val", startValue, isDisabled, 1.0,
-					selectableDamageTypes, selectedTypes || data.entry?.types, additiveDamageLabelsList, onModUpdate);
+					addDamageTypes, selectedTypes || data.entry?.types, additiveDamageLabelsList, onModUpdate);
 			}
 		});
 	}
-	function addMultiplierMod(newName, startValue, isDisabled, selectedTypes){
+	function addMultiplierModClass1(newName, startValue, isDisabled, selectedTypes){
+		//Class 1: Aspects, Unique properties, sets, Paragon nodes etc.
+		const mFilter = selectableDamageTypesFilter.multiplicativeB1;
+		const mDamageTypes = selectableDamageTypes.filter((o) => !mFilter || mFilter.includes(o.value));
 		//var modName = newName || prompt("Enter a name for this '×' modifier:");
 		Promise.resolve(newName? {name: newName} : addDynamicModPromptPromise("", "Enter a name for this '×' modifier:",
-			multiplicativeDamageLabelsList, selectableDamageTypes, selectedTypes, getCharClass()))
+			multiplicativeDamageLabelsList, mDamageTypes, selectedTypes, getCharClass()))
 		.then(function(data){
 			var modName = data.name;
 			if (modName){
-				addDynamicMod(multiModifiersContainer, modName, "multi-mod-val", startValue, isDisabled, 1.0,
-					selectableDamageTypes, selectedTypes || data.entry?.types, multiplicativeDamageLabelsList, onModUpdate);
+				addDynamicMod(multiModifiersContainerC1, modName, "multi-mod-val", startValue, isDisabled, 1.0,
+					mDamageTypes, selectedTypes || data.entry?.types, multiplicativeDamageLabelsList, onModUpdate);
+			}
+		});
+	}
+	function addMultiplierModClass2(newName, startValue, isDisabled, selectedTypes){
+		//Class 2: Craftable gear modifiers and gems
+		const mFilter = selectableDamageTypesFilter.multiplicativeB2;
+		const mDamageTypes = selectableDamageTypes.filter((o) => !mFilter || mFilter.includes(o.value));
+		//var modName = newName || prompt("Enter a name for this '×' modifier:");
+		Promise.resolve(newName? {name: newName} : addDynamicModPromptPromise("", "Enter a name for this '×' modifier:",
+			multiplicativeDamageLabelsListC2, mDamageTypes, selectedTypes, getCharClass()))
+		.then(function(data){
+			var modName = data.name;
+			if (modName){
+				addDynamicMod(multiModifiersContainerC2, modName, "multi-mod-val", startValue, isDisabled, 1.0,
+					mDamageTypes, selectedTypes || data.entry?.types, multiplicativeDamageLabelsListC2, onModUpdate);
 			}
 		});
 	}
@@ -189,11 +275,27 @@ function buildCalculator(containerEle, options){
 				});
 			}
 		});
+		//sort by type (simply join the strings)
+		factors.sort((a, b) => a.types.sort().join("+").localeCompare(b.types.sort().join("+")));
 		return factors;
 	}
-	function getMultiModPcts(includeHidden){
+	function getMultiModPctsC1(includeHidden){
 		var factors = [];
-		multiModifiersContainer.querySelectorAll(".multi-mod-val").forEach(ele => {
+		multiModifiersContainerC1.querySelectorAll(".multi-mod-val").forEach(ele => {
+			if (ele.value && (includeHidden || !ele.parentElement.classList.contains("hidden"))){
+				factors.push({
+					pct: +ele.value,
+					info: ele.parentElement.dataset.info,
+					disabled: ele.parentElement.classList.contains("hidden"),
+					types: JSON.parse(ele.dataset?.selectedTypes || "[]")
+				});
+			}
+		});
+		return factors;
+	}
+	function getMultiModPctsC2(includeHidden){
+		var factors = [];
+		multiModifiersContainerC2.querySelectorAll(".multi-mod-val").forEach(ele => {
 			if (ele.value && (includeHidden || !ele.parentElement.classList.contains("hidden"))){
 				factors.push({
 					pct: +ele.value,
@@ -283,9 +385,17 @@ function buildCalculator(containerEle, options){
 		
 		var totalDamage = 0;
 		var storedDamage = {};
-		var baseDamage = +baseDamageEle.value || 0;
-		var attackSpeed = +attackSpeedEle.value || 1.0;
-		var hasModifier = doCalcVulnerable.checked || doCalcCrit.checked || doCalcOverpower.checked;
+		var baseDamage = +(baseDamageEle.value || 0);
+		var addedWeaponDamage = +(weaponDamageAddEle.value || 0);
+		if (addedWeaponDamage){
+			let bonusWeaponDamageFactor = 1.0 + (addedWeaponDamage/baseDamage);
+			addResult("Bonus weapon damage", addedWeaponDamage, bonusWeaponDamageFactor, undefined,
+				"Bonus weapon damage of active weapon(s).");
+			baseDamage += addedWeaponDamage;
+		}
+		var attackSpeed = +(attackSpeedEle.value || 1.0);
+		//var hasModifier = doCalcVulnerable.checked || doCalcCrit.checked || doCalcOverpower.checked;
+		var hasModifier = false;	//NOTE: disabled for S13 since it didn't really feel meaningful anymore
 		
 		var skillDamageFactor = (+skillDamageEle.value || 0.0) / 100;
 		totalDamage = baseDamage * skillDamageFactor;
@@ -301,9 +411,11 @@ function buildCalculator(containerEle, options){
 			"Damage including main stat factor.");
 		addCustom("<hr>", "flat");
 		
-		var includedDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, doCalcCrit.checked, doCalcOverpower.checked);
+		var includedDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, doCalcCrit.checked,
+			doCalcOverpower.checked, isDamageOverTimeEle.checked);
 		var includedDamageTypes = includedDamage.types;
 		var includedDamageTypesKey = includedDamage.key;
+		var coreDamageTypes = getCoreDamageTypesAndKey(isDamageOverTimeEle.checked);
 		
 		//additive damage:
 		var additiveDamageFactorsByTypes = {};		//cache to avoid multiple calculations of same types
@@ -315,10 +427,13 @@ function buildCalculator(containerEle, options){
 		additiveDamageFactorsByTypes[includedDamageTypesKey] = addModFactor;
 		totalDamage *= addModFactor;	//baseDamage * skillDamageFactor * mainStatFactor * ...
 		//we also calculate the core additive factor (if not already done in previous step):
-		var addModFactorCore = loadOrCalculateAdditiveDamageFactor([], additiveDamageFactorsByTypes);
+		var addModFactorCore = loadOrCalculateAdditiveDamageFactor(coreDamageTypes.types, additiveDamageFactorsByTypes);
 		var coreDamageWithAdd = coreDamage * addModFactorCore;
 		
 		//show results after additive damage calc.
+		if (addModFactor > 1){
+			addCustom("<hr>", "flat opacity-20", true);
+		}
 		if (hasModifier){
 			addResult("Core damage after add. mod.", coreDamageWithAdd, addModFactorCore, addModColor,
 				"Core damage (no vulnerable/crit./overpower) after all additive modifiers have been applied.", false, true);
@@ -339,7 +454,7 @@ function buildCalculator(containerEle, options){
 		totalDamage *= multiModFactor;	//baseDamage * skillDamageFactor * mainStatFactor * addModFactor * ...
 		storedDamage[includedDamageTypesKey] = totalDamage;
 		//we also calculate the core additive factor (if not already done in previous step):
-		var multiModFactorCore = loadOrCalculateMultiplicativeDamageFactor([], multiplicativeDamageFactorsByTypes);
+		var multiModFactorCore = loadOrCalculateMultiplicativeDamageFactor(coreDamageTypes.types, multiplicativeDamageFactorsByTypes);
 		var coreDamageWithAddAndMulti = coreDamageWithAdd * multiModFactorCore;
 		storedDamage[TYPE_KEY_CORE] = coreDamageWithAddAndMulti;
 		
@@ -354,15 +469,15 @@ function buildCalculator(containerEle, options){
 		addCustom("<hr>", "flat");
 		
 		//combination before reduction:
-		var vulnerableDamageFactor = (1.0 + (+vulnerableDamageEle.value || 0.0) / 100);
-		var critDamageFactor = (1.0 + (+critDamageEle.value || 0.0) / 100);
-		var critChance = (+critChanceEle.value || 0)/100;
-		var overpowerDamageFactor = (1.0 + (+overpowerDamageEle.value || 0.0) / 100);
-		var everyNthOverpower = +overpowerOnNthAttackEle.value;
+		var vulnerableDamageFactor = (1.0 + +(vulnerableDamageEle.value || 0.0) / 100);
+		var critDamageFactor = (1.0 + +(critDamageEle.value || 0.0) / 100);
+		var critChance = +(critChanceEle.value || 0)/100;
+		var overpowerDamageFactor = (1.0 + +(overpowerDamageEle.value || 0.0) / 100);	//NOTE: currently set to 1.0
+		var everyNthOverpower = +(overpowerOnNthAttackEle.value || 1);
 		if (doCalcVulnerable.checked){
 			totalDamage *= vulnerableDamageFactor;
 			storedDamage[includedDamageTypesKey] = totalDamage;
-			let includeDamage = getIncludedDamageTypesAndKey(true, false, false);
+			let includeDamage = getIncludedDamageTypesAndKey(true, false, false, isDamageOverTimeEle.checked);
 			let vulnerableBaseDamage = calculateFullDamageForGivenTypes(includeDamage, vulnerableDamageFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			//let addModFactorVulnerable = loadOrCalculateAdditiveDamageFactor([TYPE_VULNERABLE], additiveDamageFactorsByTypes);
@@ -371,7 +486,7 @@ function buildCalculator(containerEle, options){
 			//storedDamage[TYPE_VULNERABLE] = vulnerableBaseDamage;	//NOTE: we might already have this, but we set it again for simplicity
 			let effectiveVulnerableDamageFactor = vulnerableBaseDamage/coreDamageWithAddAndMulti;
 			addResult("Damage to vulnerable enemies", vulnerableBaseDamage, effectiveVulnerableDamageFactor, vulnerableColor,
-				"Damage done to vulnerable enemies (no crit, no overpower) including previous modifiers for type vulnerable. " 
+				"Damage to vulnerable enemies compared to a regular strike (no crit, no overpower) including all vulnerable modifiers. " 
 				+ "Base factor: " + Number(vulnerableDamageFactor).toFixed(2) 
 				+ ", effective factor: " + Number(effectiveVulnerableDamageFactor).toFixed(2) + ".", true, true);
 			addCustom("<hr>", "flat", true);
@@ -380,12 +495,12 @@ function buildCalculator(containerEle, options){
 			//var critDamageAdditiveAsFactorIncVul = 1.0 + ((+critDamageAddEle.value || 0.0) / (addModFactor * vulnerableDamageAdditiveAsFactor)) / 100;	//it is in add. pool now
 			totalDamage *= critDamageFactor;
 			storedDamage[includedDamageTypesKey] = totalDamage;
-			let includeDamage = getIncludedDamageTypesAndKey(false, true, false);
+			let includeDamage = getIncludedDamageTypesAndKey(false, true, false, isDamageOverTimeEle.checked);
 			let critBaseDamage = calculateFullDamageForGivenTypes(includeDamage, critDamageFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			let effectiveCritDamageFactor = critBaseDamage/coreDamageWithAddAndMulti;
-			addResult("Damage with critical hit", critBaseDamage, effectiveCritDamageFactor, critColor,
-				"Damage done with critical hits (not vulnerable, no overpower) including previous modifiers for type crit. "
+			addResult("Damage with critical strike", critBaseDamage, effectiveCritDamageFactor, critColor,
+				"Damage done with critical strikes compared to regular damage (not vulnerable, no overpower) including all crit. modifiers. "
 				+ "Base factor: " + Number(critDamageFactor).toFixed(2) 
 				+ ", effective factor: " + Number(effectiveCritDamageFactor).toFixed(2) + ".", true, true);
 			/*
@@ -402,15 +517,15 @@ function buildCalculator(containerEle, options){
 		if (doCalcOverpower.checked){
 			totalDamage *= overpowerDamageFactor;
 			storedDamage[includedDamageTypesKey] = totalDamage;
-			let includeDamage = getIncludedDamageTypesAndKey(false, false, true);
+			let includeDamage = getIncludedDamageTypesAndKey(false, false, true, isDamageOverTimeEle.checked);
 			let overpowerBaseDamage = calculateFullDamageForGivenTypes(includeDamage, overpowerDamageFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			let effectiveOverpowerDamageFactor = overpowerBaseDamage/coreDamageWithAddAndMulti;
 			//let overpowerChanceFactor = 1.0/(+overpowerOnNthAttackEle.value || 10000);		//NOTE: we consider every n-th attack as 1/n chance to do add. damage
 			addResult("Damage with overpower", overpowerBaseDamage, effectiveOverpowerDamageFactor, overpowerColor,
 				"Damage done with overpower hits without modifiers like crit. or vulnerable, but including previous modifiers for type overpower. "
-				+ "Base factor: " + Number(overpowerDamageFactor).toFixed(2) 
-				+ ", effective factor: " + Number(effectiveOverpowerDamageFactor).toFixed(2) + ".", true, true);
+				//+ "Base factor: " + Number(overpowerDamageFactor).toFixed(2) + ", " +
+				+ "Effective factor: " + Number(effectiveOverpowerDamageFactor).toFixed(2) + ".", true, true);
 			addCustom("<hr>", "flat", true);
 		}
 		if (!hasModifier){
@@ -441,8 +556,10 @@ function buildCalculator(containerEle, options){
 		});
 		
 		//final results
-		var perHitColor = undefined;
-		if (doCalcCrit.checked && doCalcOverpower.checked){
+		var perHitColor = undefined;	//TODO: replace with 'getColorForTypes'
+		if (isDamageOverTimeEle.checked){
+			perHitColor = dotColor;
+		}else if (doCalcCrit.checked && doCalcOverpower.checked){
 			perHitColor = overpowerCritColor;
 		}else if (doCalcOverpower.checked){
 			perHitColor = overpowerColor;
@@ -459,21 +576,21 @@ function buildCalculator(containerEle, options){
 		var timeAvgDamageBase = storedDamage[TYPE_KEY_CORE];
 		if (doCalcVulnerable.checked){
 			//vulnerable becomes the new core since we don't give it a "chance"
-			let includeDamage = getIncludedDamageTypesAndKey(true, false, false);
+			let includeDamage = getIncludedDamageTypesAndKey(true, false, false, isDamageOverTimeEle.checked);
 			let thisDamage = calculateFullDamageForGivenTypes(includeDamage, vulnerableDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			timeAvgDamageBase = thisDamage;
 		}
 		if (doCalcCrit.checked && !doCalcOverpower.checked){
 			//only crit
-			let includeDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, false);
+			let includeDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, false, isDamageOverTimeEle.checked);
 			let thisDamage = calculateFullDamageForGivenTypes(includeDamage, critDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			//factor with crit. chance
 			timeAvgDamageBase = calculateAverageDamageBasedOnChance(timeAvgDamageBase, thisDamage, critChance);
 		}else if (!doCalcCrit.checked && doCalcOverpower.checked){
 			//only overpower
-			let includeDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, false, true);
+			let includeDamage = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, false, true, isDamageOverTimeEle.checked);
 			let thisDamage = calculateFullDamageForGivenTypes(includeDamage, overpowerDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			//factor with overpower "chance"
@@ -481,13 +598,13 @@ function buildCalculator(containerEle, options){
 			timeAvgDamageBase = calculateAverageDamageBasedOnChance(timeAvgDamageBase, thisDamage, overpowerChance);
 		}else if (doCalcCrit.checked && doCalcOverpower.checked){
 			//crit and overpower
-			let includeDamageCrit = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, false);
+			let includeDamageCrit = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, false, isDamageOverTimeEle.checked);
 			let thisDamageCrit = calculateFullDamageForGivenTypes(includeDamageCrit, critDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
-			let includeDamageOp = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, false, true);
+			let includeDamageOp = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, false, true, isDamageOverTimeEle.checked);
 			let thisDamageOp = calculateFullDamageForGivenTypes(includeDamageOp, overpowerDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
-			let includeDamageCritOp = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, true);
+			let includeDamageCritOp = getIncludedDamageTypesAndKey(doCalcVulnerable.checked, true, true, isDamageOverTimeEle.checked);
 			let thisDamageCritOp = calculateFullDamageForGivenTypes(includeDamageCritOp, critDamageFactor * overpowerDamageFactor * reductionModFactor, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			//get combined chances
@@ -544,66 +661,83 @@ function buildCalculator(containerEle, options){
 			}, 0);
 		}
 	}
-	function getIncludedDamageTypesAndKey(doVulnerable, doCrit, doOverpower){
-		var includedDamageTypes = [];
-		if (doVulnerable) includedDamageTypes.push(TYPE_VULNERABLE);
-		if (doCrit) includedDamageTypes.push(TYPE_CRIT);
-		if (doOverpower) includedDamageTypes.push(TYPE_OVERPOWER);
-		//NOTE: 'includedDamageTypesKey' depends on order, so always stick to the same (vul, crit, op)!
-		var includedDamageTypesKey = includedDamageTypes.length? includedDamageTypes.join("+") : TYPE_KEY_CORE;
+	function getIncludedDamageTypesAndKey(doVulnerable, doCrit, doOverpower, isDot){
+		var includedDamageTypes = [TYPE_KEY_CORE, TYPE_KEY_CORE_B2];
+		if (isDot){
+			includedDamageTypes.push(TYPE_KEY_CORE_DOT, TYPE_KEY_CORE_DOT_B2);
+		}
+		if (doVulnerable){
+			includedDamageTypes.push(TYPE_VULNERABLE, TYPE_VULNERABLE_B2);
+		}
+		if (doCrit){
+			includedDamageTypes.push(TYPE_CRIT, TYPE_CRIT_B2);
+		}
+		if (doOverpower){
+			includedDamageTypes.push(TYPE_OVERPOWER);
+		}
+		//NOTE: we sort the types everywhere to always get the same order for the key
+		var includedDamageTypesKey = includedDamageTypes.sort().join("+");
 		return {
 			types: includedDamageTypes,
 			key: includedDamageTypesKey
 		}
 	}
+	function getCoreDamageTypesAndKey(isDot){
+		return getIncludedDamageTypesAndKey(false, false, false, isDot);
+	}
 	function calculateAdditiveDamageFactor(options){
 		//options: includeTypes, showResultDetails, referenceDamage
 		var additiveDamageFactor = 1.0;
 		var addModBaseDamage = options.referenceDamage || 1;
-		var includeTypes = options.includeTypes || [];	//e.g.: vulnerable, crit, overpower
+		var includeTypes = options.includeTypes || [];	//e.g.: dot, vulnerable, crit, overpower
 		var showResultDetails = options.showResultDetails;
-		var addModPcts = getAdditiveModPcts();
+		var addModPcts = getAdditiveModPcts(false);
 		if (addModPcts.length){
 			addModPcts.forEach(function(addMod){
 				if (!addMod.types?.length || addMod.types.every((t) => includeTypes.includes(t))){
 					var thisFactor = (addMod.pct/100);
 					var thisDamage = addModBaseDamage * thisFactor;
+					var typeColor = getColorForTypes(addMod.types, addModColorLight);
 					additiveDamageFactor += thisFactor;
 					if (showResultDetails){
-						addResult("+ " + addMod.info, thisDamage, undefined, addModColorLight,
-							"Contribution of this add. value alone.", true);
+						addResult("+ " + addMod.info, thisDamage, undefined, typeColor,
+							"Contribution of this add. value: " + addMod.pct + "%.", true, true);
 					}
 				}
 			});
 		}
 		//calculate extras (vul./crit/op additive damage ...)
-		if (includeTypes.includes(TYPE_VULNERABLE) && vulnerableDamageAddEle.value){
-			let thisFactor = (+vulnerableDamageAddEle.value/100);
+		if (includeTypes.includes(TYPE_VULNERABLE) && +vulnerableDamageAddEle.value){
+			let vulnDamPct = +vulnerableDamageAddEle.value;
+			let thisFactor = (vulnDamPct/100);
 			let thisDamage = addModBaseDamage * thisFactor;
 			additiveDamageFactor += thisFactor;
 			if (showResultDetails){
 				addResult("+ Damage to vulnerable", thisDamage, undefined, vulnerableColor,
-					"Contribution of additive vulnerable damage.", true);
+					"Contribution of additive vulnerable damage: " + vulnDamPct + "%.", true);
 			}
 		}
-		if (includeTypes.includes(TYPE_CRIT) && critDamageAddEle.value){
-			let thisFactor = (+critDamageAddEle.value/100);
+		if (includeTypes.includes(TYPE_CRIT) && +critDamageAddEle.value){
+			let critDamPct = +critDamageAddEle.value;
+			let thisFactor = (critDamPct/100);
 			let thisDamage = addModBaseDamage * thisFactor;
 			additiveDamageFactor += thisFactor;
 			if (showResultDetails){
 				addResult("+ Critical hit damage", thisDamage, undefined, critColor,
-					"Contribution of additive critical hit damage.", true);
+					"Contribution of additive critical hit damage: " + critDamPct + "%.", true);
 			}
 		}
-		if (includeTypes.includes(TYPE_OVERPOWER) && overpowerDamageAddEle.value){
-			let thisFactorAdd = (+overpowerDamageAddEle.value/100);
+		//if (includeTypes.includes(TYPE_OVERPOWER) && overpowerDamageAddEle.value){
+		if (includeTypes.includes(TYPE_OVERPOWER) && +overpowerStacksEle.value && +overpowerDamageAddEle.value){
 			//Changes for season 2 (assuming current life = 100%):
 			//Overpower attacks gain +2% damage per 1% of your Base Life that you have in bonus life above your Base Life.
 			//Overpower attacks gain +2% damage per 1% of your Base Life you have in Fortify.
 			//discussion: https://us.forums.blizzard.com/en/d4/t/new-formula-for-overpower-damage-in-120/128302/40
 			//Changes for season 3: damage per 1% reduced from 2% to 1% for both bonus and fortified life
 			//Changes for season 9: life and fortify scaling removed
-			let dmgPer1pct = 0.0;
+			/*
+			let thisFactorAdd = (+overpowerDamageAddEle.value/100);
+			let dmgPer1pct = 0.0;	//S9 change
 			let overpowerAddDmgPercentLife = (+maxLifeEle.value - +baseLifeEle.value)/+baseLifeEle.value * 100 * dmgPer1pct;
 			let overpowerAddDmgPercentFortify = isFortified.checked? ((+maxLifeEle.value/+baseLifeEle.value) * 100 * dmgPer1pct) : 0.0;
 			let bonusLifeFactor = overpowerAddDmgPercentLife/100;
@@ -617,11 +751,23 @@ function buildCalculator(containerEle, options){
 					"Contribution of additive overpower damage (" + overpowerDamageAddEle.value + "%), " 
 					+ "bonus life (" + Math.round(overpowerAddDmgPercentLife) + "%) and fortify (" + Math.round(overpowerAddDmgPercentFortify) + "%).", true, true);
 			}
+			*/
+			//Changes for season 13: removed multiplier, calculate additive damage via stacks
+			let overpowerStacks = +overpowerStacksEle.value;
+			let overpowerDamagePerStack = +overpowerDamageAddEle.value;
+			let totalOverpowerDamageAdditive = overpowerStacks * overpowerDamagePerStack;
+			let thisFactorAdd = (totalOverpowerDamageAdditive/100);
+			additiveDamageFactor += thisFactorAdd;
+			if (showResultDetails){
+				let overpowerAddBaseDamage = addModBaseDamage * thisFactorAdd;
+				addResult("+ Overpower dmg. (active stacks)", overpowerAddBaseDamage, undefined, overpowerColor,
+					"Contribution of additive overpower damage: " + totalOverpowerDamageAdditive + "%.", true, true);
+			}
 		}
 		return additiveDamageFactor;
 	}
 	function loadOrCalculateAdditiveDamageFactor(includeTypes, cache){
-		var includeTypesKey = includeTypes?.length? includeTypes.join("+") : TYPE_KEY_CORE;
+		var includeTypesKey = includeTypes?.length? includeTypes.sort().join("+") : TYPE_KEY_CORE;
 		var addModFactor = cache[includeTypesKey];		//from cache?
 		if (addModFactor == undefined){
 			//calculate for this type key
@@ -638,24 +784,61 @@ function buildCalculator(containerEle, options){
 		var multiModBaseDamage = options.referenceDamage || 1;
 		var includeTypes = options.includeTypes || [];	//e.g.: vulnerable, crit, overpower
 		var showResultDetails = options.showResultDetails;
-		var multiModPcts = getMultiModPcts();
-		if (multiModPcts.length){
-			multiModPcts.forEach(function(multiMod){
+		//class 1 multipliers (each one is its own bucket)
+		var multiModPctsC1 = getMultiModPctsC1();
+		if (multiModPctsC1.length){
+			multiModPctsC1.forEach(function(multiMod){
 				if (!multiMod.types?.length || multiMod.types.every((t) => includeTypes.includes(t))){
 					var thisFactor = 1.0 + (multiMod.pct/100);
 					var thisDamage = multiModBaseDamage * thisFactor;
+					var typeColor = getColorForTypes(multiMod.types, multiModColorLight);
 					multiModFactor *= thisFactor;
 					if (showResultDetails){
-						addResult("× " + multiMod.info, thisDamage, undefined, multiModColorLight,
-							"Damage contribution of this multiplier alone with regard to previous section.", true);
+						addResult("× " + multiMod.info, thisDamage, undefined, typeColor,
+							"Standalone contribution of this multiplier with regard to previous section. Value: " + multiMod.pct + "%", true, true);
 					}
 				}
 			});
 		}
+		//class 2 multipliers (each type is its own bucket)
+		var multiModPctsC2 = getMultiModPctsC2();
+		if (multiModPctsC2.length){
+			var typeBuckets = {};
+			//bin into buckets
+			multiModPctsC2.forEach(function(multiMod){
+				//TODO: enforce single-type? it only makes sense with single types
+				if (!multiMod.types?.length || multiMod.types.every((t) => includeTypes.includes(t))){
+					let typeTag = multiMod.types?.length? multiMod.types.sort().join("+") : TYPE_KEY_CORE_B2;
+					let bucketTotalPct = typeBuckets[typeTag] || 0;
+					bucketTotalPct += multiMod.pct;
+					typeBuckets[typeTag] = bucketTotalPct;
+				}
+			});
+			if (showResultDetails && Object.keys(typeBuckets).length && multiModFactor > 1){
+				addCustom("<hr>", "flat opacity-20", true);
+			}
+			//make one big multi
+			Object.keys(typeBuckets).forEach(function(typeTag){
+				var bucketTotalPct = typeBuckets[typeTag];
+				var bucketName = selectableDamageTypes.find((o) => o.value == typeTag)?.name || typeTag;
+				var thisFactor = 1.0 + (bucketTotalPct/100);
+				var thisDamage = multiModBaseDamage * thisFactor;
+				var typeColor = getColorForTypes(typeTag.split("+"), multiModColorLight);
+				multiModFactor *= thisFactor;
+				if (showResultDetails){
+					//TODO: get good name for 'typeTag'
+					addResult("× " + bucketName, thisDamage, undefined, typeColor,
+						"Damage contribution of this multiplier bucket. Value: " + bucketTotalPct + "%", true, true);
+				}
+			});
+		}
+		if (showResultDetails && (multiModPctsC1.length || multiModPctsC2.length)){
+			addCustom("<hr>", "flat opacity-20", true);
+		}
 		return multiModFactor;
 	}
 	function loadOrCalculateMultiplicativeDamageFactor(includeTypes, cache){
-		var includeTypesKey = includeTypes?.length? includeTypes.join("+") : TYPE_KEY_CORE;
+		var includeTypesKey = includeTypes?.length? includeTypes.sort().join("+") : TYPE_KEY_CORE;
 		var multiModFactor = cache[includeTypesKey];		//from cache?
 		if (multiModFactor == undefined){
 			//calculate for this type key
@@ -689,12 +872,12 @@ function buildCalculator(containerEle, options){
 	function damageSimulation(steps, coreDamage, storedDamage,
 			additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes, reductionModFactor, onFinishCallback){
 		
-		var vulnerableDamageFactor = (1.0 + (+vulnerableDamageEle.value || 0.0) / 100);
-		var critDamageFactor = (1.0 + (+critDamageEle.value || 0.0) / 100);
-		var critChance = (+critChanceEle.value || 0)/100;
-		var overpowerDamageFactor = (1.0 + (+overpowerDamageEle.value || 0.0) / 100);
-		var everyNthOverpower = +overpowerOnNthAttackEle.value || 33;
-		var attackSpeed = +attackSpeedEle.value || 1.0;
+		var vulnerableDamageFactor = (1.0 + +(vulnerableDamageEle.value || 0.0) / 100);
+		var critDamageFactor = (1.0 + +(critDamageEle.value || 0.0) / 100);
+		var critChance = +(critChanceEle.value || 0)/100;
+		var overpowerDamageFactor = (1.0 + +(overpowerDamageEle.value || 0.0) / 100);
+		var everyNthOverpower = +(overpowerOnNthAttackEle.value || 1);
+		var attackSpeed = +(attackSpeedEle.value || 1.0);
 		
 		var timeStepInSeconds = 1.0/attackSpeed;
 		var timeAvgDamageSum = 0;
@@ -702,10 +885,16 @@ function buildCalculator(containerEle, options){
 		var simStart = Date.now();
 		var dataPoints = [];
 		for (let i=0; i<steps; i++){
+			let isDot = false;
 			let includeVulnerable = false;
 			let includeCrit = false;
 			let includeOverpower = false;
 			let otherDamageFactorsCombined = reductionModFactor;
+			if (isDamageOverTimeEle.checked){
+				isDot = true;
+				//TODO: implement DoT stacking via 'timeStepInSeconds' and DoT duration? Or simply calculate the max stacks at the end?
+				//TODO: what about the damage variance for DoTs?
+			}
 			if (doCalcVulnerable.checked){
 				includeVulnerable = true;
 				otherDamageFactorsCombined *= vulnerableDamageFactor;
@@ -723,7 +912,7 @@ function buildCalculator(containerEle, options){
 				}
 			}
 			//calculate (or get from cache)
-			let includeDamage = getIncludedDamageTypesAndKey(includeVulnerable, includeCrit, includeOverpower);
+			let includeDamage = getIncludedDamageTypesAndKey(includeVulnerable, includeCrit, includeOverpower, isDot);
 			let thisDamage = calculateFullDamageForGivenTypes(includeDamage, otherDamageFactorsCombined, coreDamage,
 				storedDamage, additiveDamageFactorsByTypes, multiplicativeDamageFactorsByTypes);
 			//weapon and skill variance
@@ -748,8 +937,11 @@ function buildCalculator(containerEle, options){
 			calculatorName: getTitle(),
 			charClass: getCharClass(),
 			baseDamage: +baseDamageEle.value,
+			addedWeaponDamage: +(weaponDamageAddEle.value || 0),
 			attackSpeed: +attackSpeedEle.value,
 			skillDamage: +skillDamageEle.value,
+			isDamageOverTime: isDamageOverTimeEle.checked,
+			skillDotDuration: +skillDotDurationEle.value,
 			mainStat: +mainStatEle.value,
 			baseLife: +baseLifeEle.value,
 			maxLife: +maxLifeEle.value,
@@ -758,12 +950,14 @@ function buildCalculator(containerEle, options){
 			vulnerableDamageAdd: +vulnerableDamageAddEle.value,
 			overpowerDamage: +overpowerDamageEle.value,
 			overpowerDamageAdd: +overpowerDamageAddEle.value,
+			overpowerStacks: +overpowerStacksEle.value,
 			overpowerOnNthAttack: +overpowerOnNthAttackEle.value,
 			critDamage: +critDamageEle.value,
 			critDamageAdd: +critDamageAddEle.value,
 			critChance: +critChanceEle.value,
 			additiveModifiers: getAdditiveModPcts(true),
-			damageMultipliers: getMultiModPcts(true),
+			damageMultipliersC1: getMultiModPctsC1(true),
+			damageMultipliersC2: getMultiModPctsC2(true),
 			damageReduction: getReductionModPcts(true)
 		}
 		return data;
@@ -773,17 +967,26 @@ function buildCalculator(containerEle, options){
 		
 		if (charClassEle) charClassEle.value = data.charClass || "";
 		baseDamageEle.value = data.baseDamage || 596;
+		weaponDamageAddEle.value = data.addedWeaponDamage || 0;
 		attackSpeedEle.value = data.attackSpeed || 1.0;
 		skillDamageEle.value = data.skillDamage || 50;
+		isDamageOverTimeEle.checked = data.isDamageOverTime;
+		if (isDamageOverTimeEle.checked){
+			isDamageOverTimeEle.dispatchEvent(new CustomEvent('change'));
+		}
+		skillDotDurationEle.value = data.skillDotDuration || 0;
 		mainStatEle.value = data.mainStat || 1500;
 		baseLifeEle.value = data.baseLife || 400;
 		maxLifeEle.value = data.maxLife || 3000;
 		isFortified.checked = data.isFortified;
 		vulnerableDamageEle.value = data.vulnerableDamage || 20;
 		vulnerableDamageAddEle.value = data.vulnerableDamageAdd || 0;
-		overpowerDamageEle.value = data.overpowerDamage || 50;
+		//overpowerDamageEle.value = data.overpowerDamage || 50;
+		overpowerDamageEle.value = 0;	//NOTE: reset for S13+
 		overpowerDamageAddEle.value = data.overpowerDamageAdd || 0;
-		overpowerOnNthAttackEle.value = data.overpowerOnNthAttack || 33;
+		overpowerStacksEle.value = data.overpowerStacks || 0;
+		//overpowerOnNthAttackEle.value = data.overpowerOnNthAttack || 1;
+		overpowerOnNthAttackEle.value = 1;	//NOTE: reset for S13+
 		critDamageEle.value = data.critDamage || 50;
 		critDamageAddEle.value = data.critDamageAdd || 0;
 		critChanceEle.value = data.critChance || 5;
@@ -793,10 +996,20 @@ function buildCalculator(containerEle, options){
 				addAdditiveMod(itm.info, itm.pct, itm.disabled, itm.types);
 			});
 		}
-		multiModifiersContainer.innerHTML = "";
-		if (data.damageMultipliers?.length){
-			data.damageMultipliers.forEach(function(itm){
-				addMultiplierMod(itm.info, itm.pct, itm.disabled, itm.types);
+		multiModifiersContainerC1.innerHTML = "";
+		multiModifiersContainerC2.innerHTML = "";
+		if (data.damageMultipliers?.length && !data.damageMultipliersC1?.length){
+			//convert legacy value (pre S13)
+			data.damageMultipliersC1 = data.damageMultipliers;
+		}
+		if (data.damageMultipliersC1?.length){
+			data.damageMultipliersC1.forEach(function(itm){
+				addMultiplierModClass1(itm.info, itm.pct, itm.disabled, itm.types);
+			});
+		}
+		if (data.damageMultipliersC2?.length){
+			data.damageMultipliersC2.forEach(function(itm){
+				addMultiplierModClass2(itm.info, itm.pct, itm.disabled, itm.types);
 			});
 		}
 		reductionModifiersContainer.innerHTML = "";
@@ -858,7 +1071,8 @@ function buildCalculator(containerEle, options){
 	titleSection.addEventListener('click', chooseTitle);
 				
 	addModifierBtn.addEventListener('click', function(){ addAdditiveMod(); });
-	multiModifierBtn.addEventListener('click', function(){ addMultiplierMod(); });
+	multiModifierBtnC1.addEventListener('click', function(){ addMultiplierModClass1(); });
+	multiModifierBtnC2.addEventListener('click', function(){ addMultiplierModClass2(); });
 	reductionModifierBtn.addEventListener('click', function(){ addReductionMod(); });
 	calculateBtn.addEventListener('click', function(){ calculateDamage(); });
 	simDpsBtn.addEventListener('click', function(){ runSimulation(simulationHitsNumEle.value); });
@@ -887,11 +1101,13 @@ function buildCalculator(containerEle, options){
 	if (options?.addDemoContent){
 		addAdditiveMod("Example: Damage while Healthy", 30);
 		addAdditiveMod("Example: Damage on Monday", 69);
-		addMultiplierMod("Example: Crit. Bonus", 18, false, ["crit"]);
-		addMultiplierMod("Example: Tibaults Will", 40);
-		addReductionMod("Monster damage reduction (lvl 60)", 85);
+		addMultiplierModClass1("Example: Grandfather Crit.", 150, false, ["crit"]);
+		addMultiplierModClass1("Example: Heir of Perdition", 80);
+		addMultiplierModClass2("Example: Royal Skull", 22, false, ["core_b2"]);
+		addMultiplierModClass2("Example: Fire Damage Multi.", 14, false, ["core_b2"]);
+		addReductionMod("Monster damage reduction (lvl 70)", 80);
 	}else if (!options?.cfg && options?.addDemoContent !== false){
-		addReductionMod("Monster damage reduction (lvl 60)", 85);
+		addReductionMod("Monster damage reduction (lvl 70)", 80);
 	}
 	//Show/hide footer?
 	if (!options?.showFooter){

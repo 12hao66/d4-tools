@@ -9,10 +9,11 @@
 	
 	<link rel="stylesheet" href="common.css?v=0.16.0">
 	<script src="dragdrop.js"></script>
-	<script defer src="common.js?v=0.16.0"></script>
-	<script defer src="damage.js?v=0.16.0"></script>
+	<script defer src="common.js?v=0.17.0"></script>
+	<script defer src="damage.js?v=0.17.0"></script>
 	<script defer src="data/additive-damage-labels.js?v=0.16.0"></script>
-	<script defer src="data/multiplicative-damage-labels.js?v=0.16.0"></script>
+	<script defer src="data/multiplicative-damage-labels.js?v=0.17.0"></script>
+	<script defer src="data/multiplicative-damage-labels-c2.js?v=0.17.0"></script>
 
 	<title>D4 Damage Calculator</title>
 	<!-- open graph settings -->
@@ -35,8 +36,8 @@
 	
 	<script>
 		var d4cType = "dmgcalc";	//TODO: this is added to the storage key and can in theory be in conflict with calc name
-		var d4cVersion = "0.19.0";
-		var d4season = "11";
+		var d4cVersion = "0.20.0";
+		var d4season = "13";
 	</script>
 </head>
 <body>
@@ -138,26 +139,40 @@
 								<option value='Barbarian'>Barbarian</option>
 								<option value='Druid'>Druid</option>
 								<option value='Necro'>Necromancer</option>
+								<option value='Paladin'>Paladin</option>
 								<option value='Rogue'>Rogue</option>
 								<option value='Sorc'>Sorcerer</option>
 								<option value='Spiritborn'>Spiritborn</option>
+								<option value='Warlock'>Warlock</option>
 							</select>
 						</div>
 					</div>
 					<div class="section">
-						<div class="group calc-item" title="Damage of your weapon used to cast the skill, taken from character stats menu, OR the value of your primary damage effect like Dust Devils, Ice Spikes, Splintering Energy, etc. For skills with 1h double-swing attacks please divide the number by 2 if the skill mentions separate single-handed attacks.">
-							<label class="emphasize has-info">Primary (weapon) damage:</label>
-							<input name="base-damage" class="highlight border-col-base" type="number" value="596" data-refresh-calc="true">
+						<div class="group calc-item" title="Damage of your weapon(s) used to cast the skill, taken from character stats menu, OR the value of your primary damage effect like Dust Devils, Ice Spikes, Splintering Energy, etc. For skills with 1h double-swing attacks please divide the number by 2 if the skill mentions separate single-handed attacks.">
+							<label class="emphasize has-info">Primary weapon damage:</label>
+							<input name="base-damage" class="highlight border-col-base" type="number" value="2815" data-refresh-calc="true" placeholder="2815">
+						</div>
+						<div class="group calc-item" title="Damage added to the weapon(s) via gear affix. If you attack with 2 weapons take the sum of the affixes on both weapons.">
+							<label class="emphasize has-info">Added weapon damage:</label>
+							<input name="weapon-damage-add" class="highlight border-col-base" type="number" value="281" data-refresh-calc="true" placeholder="281">
 						</div>
 						<div class="group calc-item" title="Attack speed found in your character stats menu (includes weapon speed and boni). Will be used for DPS calculation.">
 							<label class="emphasize has-info">Total attack speed:</label>
-							<input name="attack-speed" class="highlight border-col-base" type="number" value="1.0" step="0.1" data-refresh-calc="true">
+							<input name="attack-speed" class="highlight border-col-base" type="number" value="1.0" step="0.1" data-refresh-calc="true" placeholder="1.0">
 						</div>
 					</div>
 					<div class="section">
 						<div class="group calc-item" title="Skill damage taken from skill tree description.">
 							<label class="emphasize has-info">Skill damage modifier (%):</label>
-							<input name="skill-damage" class="highlight border-col-base" type="number" value="50" data-refresh-calc="true">
+							<input name="skill-damage" class="highlight border-col-base" type="number" value="150" data-refresh-calc="true">
+						</div>
+						<div class="group calc-item no-side-padding" title="Is the skill applying damage over time? This will take the tick duration into account.">
+							<label class="single flex-start has-info">Is damage over time:</label>
+							<input name="skill-is-dot" type="checkbox" data-refresh-calc="true">
+						</div>
+						<div style="display: none;" class="group calc-item" title="The duration value given for the damage over time skill, for example '... over 5s'.">
+							<label class="has-info">Damage over time duration:</label>
+							<input name="skill-dot-duration" class="highlight border-col-base" type="number" value="5" data-refresh-calc="true">
 						</div>
 					</div>
 					<div class="section">
@@ -169,15 +184,19 @@
 							<label class="emphasize has-info">Damage bonus from stat (%):</label>
 							<input name="main-stat-dmg" class="" type="number" value="0" disabled>
 						</div>
-						<div class="group calc-item" title="Base and maximum life. Used for example to calculate overpower damage.">
+						<div style="display: none;" class="group calc-item" title="Base and maximum life. Used for example to calculate overpower damage.">
 							<div style="margin-right: 16px;">
 								<label class="has-info">Base life:</label>
-								<input name="char-base-life" class="highlight" type="number" value="400" data-refresh-calc="true">
+								<input name="char-base-life" class="highlight" type="number" value="1526" data-refresh-calc="true">
 							</div>
 							<div>
 								<label class="has-info">Max. life:</label>
-								<input name="char-max-life" class="highlight" type="number" value="3000" data-refresh-calc="true">
+								<input name="char-max-life" class="highlight" type="number" value="15000" data-refresh-calc="true">
 							</div>
+						</div>
+						<div style="display: none;" class="group calc-item no-side-padding" title="Is the character fortified?">
+							<label class="single flex-start">Character is fortified:</label>
+							<input name="char-is-fortified" type="checkbox" data-refresh-calc="true">
 						</div>
 					</div>
 					<div class="section">
@@ -189,24 +208,6 @@
 						<div class="group calc-item" title="Additive damage gained from 'vulnerable damage' stats on items, paragon board etc.">
 							<label class="emphasize has-info">Additive damage ([+]%):</label>
 							<input name="vulnerable-damage-add" class="highlight border-col-vul" type="number" value="0" data-refresh-calc="true">
-						</div>
-					</div>
-					<div class="section">
-						<div class="group calc-item" title="The fixed base multiplier for overpower damage. If your gear has [x%] modifiers its recommended to add them to the global section below.">
-							<label class="has-info">Overpower damage ([x]%):</label>
-							<input name="overpower-damage" class="highlight border-col-overp" type="number" value="50" data-refresh-calc="true">
-							<button name="overpower-damage-lock" title="Unlock fixed value"><svg viewBox="0 0 330 330" style="width: 10px; fill: currentColor;"><use xlink:href="#svg-lock"></use></svg></button>
-						</div>
-						<div class="group calc-item" title="Additive damage gained from 'overpower damage' stats on items, paragon board etc.">
-							<label class="emphasize has-info">Additive damage ([+]%):</label>
-							<input name="overpower-damage-add" class="highlight border-col-overp" type="number" value="0" data-refresh-calc="true">
-						</div>
-						<div class="group calc-item" title="Add a value here if you use a skill or mechanic that leads to a guaranteed overpower attack on every n-th cast. Will be used for DPS calculation.">
-							<label class="has-info">Every n-th attack will overp.:</label>
-							<input name="overpower-nth-attack" class="highlight border-col-overp" type="number" value="33" data-refresh-calc="true">
-						</div>
-						<div class="group calc-item" title="Does the character have the ability to fortify?" style="display: none;">
-							<label class="single flex">Character can fortify: <input name="char-is-fortified" type="checkbox" data-refresh-calc="true"></label>
 						</div>
 					</div>
 					<div class="section">
@@ -224,6 +225,29 @@
 							<input name="critical-hit-chance" class="highlight border-col-crit" type="number" value="5" data-refresh-calc="true">
 						</div>
 					</div>
+					<div class="section">
+						<div style="display: none;" class="group calc-item" title="The fixed base multiplier for overpower damage. If your gear has [x%] modifiers its recommended to add them to the global section below.">
+							<label class="has-info">Overpower damage ([x]%):</label>
+							<input name="overpower-damage" class="highlight border-col-overp" type="number" value="0" data-refresh-calc="true">
+							<button name="overpower-damage-lock" title="Unlock fixed value"><svg viewBox="0 0 330 330" style="width: 10px; fill: currentColor;"><use xlink:href="#svg-lock"></use></svg></button>
+						</div>
+						<!--<div class="group calc-item" title="Additive damage gained from 'overpower damage' stats on items, paragon board etc.">
+							<label class="emphasize has-info">Additive damage ([+]%):</label>
+							<input name="overpower-damage-add" class="highlight border-col-overp" type="number" value="0" data-refresh-calc="true">
+						</div>-->
+						<div class="group calc-item" title="The sum of all your additive damage gained from 'overpower damage per stack' stats on items, paragon board etc.">
+							<label class="emphasize has-info">Overpower damage per stack ([+]%):</label>
+							<input name="overpower-damage-add" class="highlight border-col-overp" type="number" value="15" data-refresh-calc="true">
+						</div>
+						<div class="group calc-item" title="Number of overpower stacks that are used for the damage calculation.">
+							<label class="has-info">Active overpower stacks:</label>
+							<input name="overpower-stacks" class="highlight border-col-overp" type="number" value="0" data-refresh-calc="true">
+						</div>
+						<div style="display: none;" class="group calc-item" title="Add a value here if you use a skill or mechanic that leads to a guaranteed overpower attack on every n-th cast. Will be used for DPS calculation.">
+							<label class="has-info">Every n-th attack will overp.:</label>
+							<input name="overpower-nth-attack" class="highlight border-col-overp" type="number" value="1" data-refresh-calc="true">
+						</div>
+					</div>
 				</div>
 				<div class="section-group">
 					<div class="section">
@@ -237,11 +261,21 @@
 				</div>
 				<div class="section-group">
 					<div class="section">
-						<p class="heading has-info" title="Multipliers gained from skills, synergies, unique items, aspects, etc."
-							>Damage multipliers ([×]%):</p>
+						<p class="heading has-info" title="Multipliers gained from skills, synergies, unique items, sets, aspects, paragon etc. Each value is its own 'bucket'."
+							>Damage multipliers ([×]% Uniques/Sets/Paragon/etc.):</p>
 						<div name="multi-modifiers-container" class="modifiers-container"></div>
 						<div class="group right">
 							<button class="button-bold" name="multi-modifier-btn" title="Add new modifier">+</button>
+						</div>
+					</div>
+				</div>
+				<div class="section-group">
+					<div class="section">
+						<p class="heading has-info" title="Multipliers gained from gear modifiers, gems, etc. Common types are aggregated to one 'bucket' each."
+							>Aggregated multipliers ([×]% Gear Modifiers/Gems):</p>
+						<div name="multi-modifiers-container-c2" class="modifiers-container"></div>
+						<div class="group right">
+							<button class="button-bold" name="multi-modifier-btn-c2" title="Add new modifier">+</button>
 						</div>
 					</div>
 				</div>
@@ -258,9 +292,9 @@
 				<div class="section-group">
 					<div class="section">
 						<div class="group center">
-							<label class="single flex">Vulnerable: <input name="do-calc-vulnerable" type="checkbox" data-refresh-calc="true"></label>
-							<label class="single flex">Critical hit: <input name="do-calc-crit" type="checkbox" data-refresh-calc="true"></label>
-							<label class="single flex">Overpower: <input name="do-calc-overpower" type="checkbox" data-refresh-calc="true"></label>
+							<label class="single flex">Vulnerable enemies: <input name="do-calc-vulnerable" type="checkbox" data-refresh-calc="true"></label>
+							<label class="single flex">Critical strike: <input name="do-calc-crit" type="checkbox" data-refresh-calc="true"></label>
+							<!--<label class="single flex">Overpower: <input name="do-calc-overpower" type="checkbox" data-refresh-calc="true"></label>-->
 						</div>
 						<div class="group center buttons-box">
 							<button name="calculate-data-btn">CALCULATE DAMAGE</button>
