@@ -460,13 +460,25 @@ var T={
 "Damage to vulnerable":"对易伤伤害",
 "Critical hit damage":"暴击伤害",
 "Overpower dmg. (active stacks)":"压制伤害(当前层数)",
-"Base life":"基础生命"
+"Base life":"基础生命",
+"Damage to vulnerable enemies compared to a regular strike (no crit, no overpower) including all vulnerable modifiers. ":"对易伤敌人的伤害（对比普通攻击，无暴击/压制），包含所有易伤修正。",
+"Average damage of a critical hit (not vulnerable, no overpower), factoring in the critical hit chance, ":"在考虑暴击率的情况下，（非易伤、无压制的）暴击平均伤害，",
+"e.g. 30% crit chance means (70% core damage + 30% crit damge).":"例如 30% 暴击率意味着 (70% 核心伤害 + 30% 暴击伤害)。",
+"Max. damage after this and all previous reduction factors have been applied.":"应用此及之前所有减免因子后的最大伤害。",
+"Note: Your in-game numbers can be around 25% lower/higher, depending on your min/max damage roll for weapon and skill at cast.":"注意：游戏内数值可能上下浮动约 25%，取决于武器和技能施放时的最小/最大伤害波动。",
+"Contribution of additive vulnerable damage: ":"易伤加法伤害贡献：",
+"Contribution of additive critical hit damage: ":"暴击加法伤害贡献：",
+"Contribution of additive overpower damage: ":"压制加法伤害贡献：",
+"Base factor: ":"基础因子：","Effective factor: ":"有效因子：","effective factor: ":"有效因子：",
+"Average damage of a critical hit (not vulnerable, no overpower), factoring in the critical hit chance, e.g. 30% crit chance means (70% core damage + 30% crit damge).":"在考虑暴击率的情况下，（非易伤、无压制的）暴击平均伤害，例如 30% 暴击率意味着 (70% 核心伤害 + 30% 暴击伤害)。",
+"Average damage per second, if you cast the skill as fast as possible over a few seconds without resource issues. Includes critical strike chance and every n-th overpower hit, if check-boxes are selected.":"以最快速度施放技能且无资源问题的每秒平均伤害。若勾选相应选项，包含暴击率和每 n 次压制攻击。",
+"Final result for single (best) hit damage to monsters based on your average weapon damage.\nNote: Your in-game numbers can be around 25% lower/higher, depending on your min/max damage roll for weapon and skill at cast.":"基于平均武器伤害对怪物的单次（最佳）伤害最终结果。\n注意：游戏内数值可能上下浮动约 25%，取决于武器和技能施放时的最小/最大伤害波动。",
 };
 
 function tx(t){
 if(!t||typeof t!=="string")return t;
 if(T.hasOwnProperty(t))return T[t];
-for(var k in T){if(T.hasOwnProperty(k)&&t.indexOf(k)===0)return T[k]+t.slice(k.length);}
+var ks=Object.keys(T).sort(function(a,b){return b.length-a.length;});for(var i=0;i<ks.length;i++){var k=ks[i];if(T.hasOwnProperty(k)&&t.indexOf(k)===0){var r=t.slice(k.length);if(r.length>0)return T[k]+tx(r);return T[k];}}
 // Retry after stripping "+ " prefix (used in result display)
 if(t.indexOf("+ ")==0){var s=t.slice(2);if(T.hasOwnProperty(s))return "+ "+T[s];for(var k in T){if(T.hasOwnProperty(k)&&s.indexOf(k)===0)return "+ "+T[k]+s.slice(k.length);}}
 // Retry after stripping "x " prefix (used in multiplicative result display)
