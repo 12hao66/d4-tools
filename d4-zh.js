@@ -32,7 +32,7 @@ var T={
 "Paladin":"圣骑士",
 "Rogue":"游侠",
 "Sorcerer":"法师",
-"Spiritborn":"灵裔",
+"Spiritborn":"灵巫",
 "Warlock":"术士",
 "Primary weapon damage:":"主武器伤害：",
 "Added weapon damage:":"附加武器伤害：",
@@ -456,7 +456,11 @@ var T={
 "Item: Tal Rashas":"物品：塔拉夏",
 "Set: ":"套装：",
 "Approx. add. armor required to reach 85% DR cap.":"达到85%减伤上限所需的约额外护甲。",
-"Additive damage gained from 'overpower damage' stats on items, paragon board etc.":"来自装备、巅峰盘等的压制伤害属性的加法伤害。"
+"Additive damage gained from 'overpower damage' stats on items, paragon board etc.":"来自装备、巅峰盘等的压制伤害属性的加法伤害。",
+"Damage to vulnerable":"对易伤伤害",
+"Critical hit damage":"暴击伤害",
+"Overpower dmg. (active stacks)":"压制伤害(当前层数)",
+"Base life":"基础生命"
 };
 
 function tx(t){
