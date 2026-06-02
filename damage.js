@@ -185,7 +185,7 @@ function buildCalculator(containerEle, options){
 	function chooseTitle(){
 		showFormPopUp([
 			{label: "Enter a name for this configuration:", input: true, name: "name", required: true,
-				value: currentConfigName, title: "Please use [a-zA-Z0-9\\s_\\-]", pattern: "[a-zA-Z0-9\\s_\\-]+"},
+				value: currentConfigName, title: "支持中文、字母、数字、空格、下划线和连字符"},
 			{submit: true, name: "Set"}
 		], function(formData){
 			var newTitle = formData.get("name").trim();
@@ -1027,8 +1027,7 @@ function buildCalculator(containerEle, options){
 		var data = getData();
 		showFormPopUp([
 			{label: "Enter a name for this configuration:", input: true, name: "name",
-				value: currentConfigName, title: "Allowed characters: a-Z,0-9,_,- and space",
-				pattern: "[a-zA-Z0-9\\s_\\-]+", required: true},
+				value: currentConfigName, title: "支持中文、字母、数字、空格、下划线和连字符", required: true},
 			{submit: true, name: "Save"}
 		], function(formData){
 			var name = formData.get("name").trim();
