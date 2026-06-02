@@ -12,6 +12,20 @@ Lightweight, clutter-free, web-based, open-source tools for Diablo 4 to calculat
 - Responsive design for large (desktop) and small (mobile) screens
 - Light/dark mode
 
+## 简体中文 / Simplified Chinese
+
+本项目已支持简体中文。翻译通过独立的 d4-zh.js 文件实现，**无需修改任何原始代码**。
+
+- **文件**: d4-zh.js（~20KB，325 条翻译映射）
+- **原理**: 页面加载后遍历 DOM 替换文本，并通过 MutationObserver 实时翻译动态生成的内容（弹窗、计算结果、修正条目等），同时包装 showPopUp、confirm 等全局函数以拦截动态字符串
+- **HTML 改动**: index.html、damage.html、defense.html 各加了一行 script 标签引入 d4-zh.js
+- **原始 JS/CSS/数据文件**: 完全未修改
+- **禁用方式**: 从 HTML 中移除 script 标签即可恢复英文界面
+
+This project now supports Simplified Chinese via a standalone d4-zh.js file. No original source code was modified. To disable, simply remove the script tag from the HTML files.
+
+---
+
 ## Damage Calculator
 
 The D4 Damage Calculator is a useful tool to assess your build, evaluate your damage and find ways to optimize it.  
