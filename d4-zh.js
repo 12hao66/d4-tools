@@ -95,7 +95,7 @@ var T={
 "Contribution of additive critical hit damage: ":"加法暴击伤害贡献：",
 "Contribution of additive overpower damage: ":"加法压制伤害贡献：",
 "Standalone contribution of this multiplier with regard to previous section. Value: ":"此乘数独立贡献。值：",
-"Damage contribution of this multiplier bucket. Value: ":"此乘数桶伤害贡献。值：",
+"Damage contribution of this multiplier bucket. Value: ":"此乘数乘区伤害贡献。值：",
 "Base armor":"基础护甲",
 "Total armor":"总护甲",
 "Physical DR from armor (approx.)":"护甲物理减伤(约)",
@@ -277,8 +277,8 @@ var T={
 "Number of overpower stacks that are used for the damage calculation.":"用于伤害计算的压制层数。",
 "Add a value here if you use a skill or mechanic that leads to a guaranteed overpower attack on every n-th cast. Will be used for DPS calculation.":"若使用每n次施放必定触发压制的技能或机制，在此填写。将用于DPS计算。",
 "Modifiers include 'Damage to Healthy, Damage with Physical, Damage with Lightning, Damage to Bleeding, etc. ...":"修正包括\x22对健康敌人伤害、物理伤害、闪电伤害、对流血敌人伤害\x22等...",
-"Multipliers gained from skills, synergies, unique items, sets, aspects, paragon etc. Each value is its own 'bucket'.":"来自技能、协同、暗金装备、套装、威能、巅峰等的乘数。每个值都是独立的\x22桶\x22。",
-"Multipliers gained from gear modifiers, gems, etc. Common types are aggregated to one 'bucket' each.":"来自装备修正、宝石等的乘数。同类修正会聚合到同一个\x22桶\x22。",
+"Multipliers gained from skills, synergies, unique items, sets, aspects, paragon etc. Each value is its own 'bucket'.":"来自技能、技能协同、暗金装备、套装、威能、巅峰等的乘数。每个值都是独立的\x22乘区\x22。",
+"Multipliers gained from gear modifiers, gems, etc. Common types are aggregated to one 'bucket' each.":"来自装备修正、宝石等的乘数。同类修正会聚合到同一个\x22乘区\x22。",
 "Any other multipliers that reduce your damage. The most important value is the one based on your own character level called 'monster visible damage reduction' (see in-game level tool tip, lvl. 60 => 97%).":"任何降低伤害的乘数。最重要的值是基于角色等级的\x22怪物可见伤害减免\x22（见游戏内等级提示，60级=>97%）。",
 "Your character class. Some damage values depend on your class, e.g. the main stat (since S5).":"你的角色职业。部分伤害值取决于职业，例如主属性（自S5起）。",
 "Your base armor from gear, paragon board, skulls etc. You can add single values for each item or combine values as you like.":"来自装备、巅峰盘、骷髅等的基础护甲值。可逐项添加或任意合并。",
@@ -479,6 +479,8 @@ function tx(t){
 if(!t||typeof t!=="string")return t;
 if(T.hasOwnProperty(t))return T[t];
 var ks=Object.keys(T).sort(function(a,b){return b.length-a.length;});for(var i=0;i<ks.length;i++){var k=ks[i];if(T.hasOwnProperty(k)&&t.indexOf(k)===0){var r=t.slice(k.length);if(r.length>0)return T[k]+tx(r);return T[k];}}
+// Global substring replacement for longer keys (fixes "Base factor" / "effective factor" in dynamic tooltips)
+var result=t;for(var i=0;i<ks.length;i++){var k=ks[i];if(k.length>10&&T.hasOwnProperty(k)&&result.indexOf(k)>=0){result=result.split(k).join(T[k]);}}if(result!==t)return result;
 // Retry after stripping "+ " prefix (used in result display)
 if(t.indexOf("+ ")==0){var s=t.slice(2);if(T.hasOwnProperty(s))return "+ "+T[s];for(var k in T){if(T.hasOwnProperty(k)&&s.indexOf(k)===0)return "+ "+T[k]+s.slice(k.length);}}
 // Retry after stripping "x " prefix (used in multiplicative result display)
